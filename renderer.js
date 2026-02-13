@@ -1,9 +1,14 @@
 "use strict";
 
-const vertexCoords = new Float32Array([
-    -0.5, -0.5,
-    0.5, -0.5,
-    0, 0.5
+const vertexData = new Float32Array([
+   /* coords */     /* color */
+    -0.8, -0.6,      1, 0, 0,      // data for first vertex
+    0.8, -0.6,       0, 1, 0,      // data for second vertex
+    0.0, 0.7,        0, 0, 1       // data for third vertex
+]);
+
+const indexData = new Uint32Array([
+    0, 1, 2
 ]);
 
 async function initWebGPU() {
@@ -28,10 +33,13 @@ async function initWebGPU() {
     // Create a shader module from the shader code.
     let shaderModule = device.createShaderModule({ code: shader });
 
-    let vertexBufferLayout = [ // An array of vertex buffer specifications.
-        {
-            attributes: [{ shaderLocation: 0, offset: 0, format: "float32x2" }],
-            arrayStride: 8,
+    let vertexBufferLayout = [
+        {   // One vertex buffer, containing values for two attributes.
+            attributes: [
+                { shaderLocation: 0, offset: 0, format: "float32x2" },
+                { shaderLocation: 1, offset: 8, format: "float32x3" }
+            ],
+            arrayStride: 20,
             stepMode: "vertex"
         }
     ];
@@ -73,8 +81,13 @@ async function initWebGPU() {
 
     // build vertex and uniform buffer
     let vertexBuffer = device.createBuffer({
-        size: vertexCoords.byteLength,
+        size: vertexData.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+    });
+
+    let indexBuffer = device.createBuffer({
+        size: indexData.byteLength,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST
     });
 
     let uniformBuffer = device.createBuffer({
@@ -92,7 +105,8 @@ async function initWebGPU() {
         ]
     });
 
-    device.queue.writeBuffer(vertexBuffer, 0, vertexCoords);
+    device.queue.writeBuffer(vertexBuffer, 0, vertexData);
+    device.queue.writeBuffer(indexBuffer, 0, indexData);
 
     // drawing
     let commandEncoder = device.createCommandEncoder();
@@ -108,8 +122,10 @@ async function initWebGPU() {
     let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
     passEncoder.setPipeline(pipeline);            // Specify pipeline.
     passEncoder.setVertexBuffer(0, vertexBuffer);  // Attach vertex buffer.
+    passEncoder.setVertexBuffer(1, vertexBuffer);  // Attach vertex buffer.
+    passEncoder.setIndexBuffer(indexBuffer, "uint32");
     passEncoder.setBindGroup(0, uniformBindGroup); // Attach bind group.
-    passEncoder.draw(3);                          // Generate vertices.
+    passEncoder.drawIndexed(3);                          // Generate vertices.
     passEncoder.end();
 
     let commandBuffer = commandEncoder.finish();
