@@ -1,4 +1,4 @@
-const shader = `
+
 struct VertexOutput {  // type for return value of vertex shader
    @builtin(position) position: vec4f,
    @location(0) color : vec3f  
@@ -21,4 +21,3 @@ fn vertexMain(
 fn fragmentMain(@location(0) fragColor : vec3f) -> @location(0) vec4f {
    return vec4f(fragColor,1);
 }
-`;

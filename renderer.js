@@ -11,6 +11,10 @@ const indexData = new Uint32Array([
     0, 1, 2
 ]);
 
+async function getTextContent(elementID) {
+    return fetch(document.getElementById(elementID).src).then(r => r.text());
+}
+
 async function initWebGPU() {
 
     if (!navigator.gpu) {
@@ -31,7 +35,7 @@ async function initWebGPU() {
     });
 
     // Create a shader module from the shader code.
-    let shaderModule = device.createShaderModule({ code: shader });
+    let shaderModule = device.createShaderModule({ code: await getTextContent("shader") });
 
     let vertexBufferLayout = [
         {   // One vertex buffer, containing values for two attributes.
