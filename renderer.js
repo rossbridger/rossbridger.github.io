@@ -1,10 +1,10 @@
 "use strict";
 
 const vertexData = new Float32Array([
-   /* coords */     /* color */
-    -0.8, -0.6,      1, 0, 0,      // data for first vertex
-    0.8, -0.6,       0, 1, 0,      // data for second vertex
-    0.0, 0.7,        0, 0, 1       // data for third vertex
+    /* coords */     /* color */
+    -0.8, -0.6, 1, 0, 0,      // data for first vertex
+    0.8, -0.6, 0, 1, 0,      // data for second vertex
+    0.0, 0.7, 0, 0, 1       // data for third vertex
 ]);
 
 const indexData = new Uint32Array([
@@ -79,6 +79,28 @@ async function initWebGPU() {
 
     let pipeline = device.createRenderPipeline(pipelineDescriptor);
 
+    let pipelineDescriptorForOutline = {
+        vertex: { // Configuration for the vertex shader.
+            module: shaderModule,
+            entryPoint: "vertexMain",
+            buffers: vertexBufferLayout
+        },
+        fragment: { // Configuration for the fragment shader.
+            module: shaderModule,
+            entryPoint: "fragmentMain",
+            targets: [{
+                format: navigator.gpu.getPreferredCanvasFormat()
+            }]
+        },
+        primitive: {
+            topology: "line-strip"
+        },
+        layout: device.createPipelineLayout({
+            bindGroupLayouts: [uniformBindGroupLayout]
+        })
+    };
+    let pipelineForOutline = device.createRenderPipeline(pipelineDescriptorForOutline);
+
     // build vertex and uniform buffer
     let vertexBuffer = device.createBuffer({
         size: vertexData.byteLength,
@@ -119,13 +141,25 @@ async function initWebGPU() {
         }]
     };
 
-    let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+    let passEncoder;
+    renderPassDescriptor.colorAttachments[0].loadOp = "clear";
+    passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
     passEncoder.setPipeline(pipeline);            // Specify pipeline.
     passEncoder.setVertexBuffer(0, vertexBuffer);  // Attach vertex buffer.
     passEncoder.setVertexBuffer(1, vertexBuffer);  // Attach vertex buffer.
     passEncoder.setIndexBuffer(indexBuffer, "uint32");
     passEncoder.setBindGroup(0, uniformBindGroup); // Attach bind group.
     passEncoder.drawIndexed(3);                          // Generate vertices.
+    passEncoder.end();
+
+    /* Second render pass draws the outline, using a "line-strip" topology. */
+    renderPassDescriptor.colorAttachments[0].loadOp = "load"; // DON'T clear!
+    passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+    passEncoder.setPipeline(pipelineForOutline); // uses "line-strip"
+    passEncoder.setVertexBuffer(0, vertexBuffer);
+    passEncoder.setVertexBuffer(1, vertexBuffer);  // Attach vertex buffer.
+    passEncoder.setBindGroup(0, uniformBindGroup);
+    passEncoder.draw(3);
     passEncoder.end();
 
     let commandBuffer = commandEncoder.finish();
