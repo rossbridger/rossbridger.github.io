@@ -74,7 +74,10 @@ async function initWebGPU() {
         },
         layout: device.createPipelineLayout({
             bindGroupLayouts: [uniformBindGroupLayout]
-        })
+        }),
+        multisample: {  // Sets number of samples for multisampling.
+            count: 4,     //  (1 and 4 are currently the only possible values).
+        },
     };
 
     let pipeline = device.createRenderPipeline(pipelineDescriptor);
@@ -97,7 +100,10 @@ async function initWebGPU() {
         },
         layout: device.createPipelineLayout({
             bindGroupLayouts: [uniformBindGroupLayout]
-        })
+        }),
+        multisample: {  // Sets number of samples for multisampling.
+            count: 4,     //  (1 and 4 are currently the only possible values).
+        },
     };
     let pipelineForOutline = device.createRenderPipeline(pipelineDescriptorForOutline);
 
@@ -130,6 +136,14 @@ async function initWebGPU() {
     device.queue.writeBuffer(vertexBuffer, 0, vertexData);
     device.queue.writeBuffer(indexBuffer, 0, indexData);
 
+    let textureForMultisampling = device.createTexture({
+        size: [context.canvas.width, context.canvas.height],
+        sampleCount: 4,  // (1 and 4 are currently the only possible values.)
+        format: navigator.gpu.getPreferredCanvasFormat(),
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    let textureViewForMultisampling = textureForMultisampling.createView();
+
     // drawing
     let commandEncoder = device.createCommandEncoder();
     let renderPassDescriptor = {
@@ -137,7 +151,8 @@ async function initWebGPU() {
             clearValue: { r: 0.5, g: 0.5, b: 0.5, a: 1 },  // gray background
             loadOp: "clear", // Alternative is "load".
             storeOp: "store",  // Alternative is "discard".
-            view: context.getCurrentTexture().createView()  // Draw to the canvas.
+            view: textureViewForMultisampling, // Render to multisampling texture.
+            resolveTarget: context.getCurrentTexture().createView() // Final image.
         }]
     };
 

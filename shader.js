@@ -6,12 +6,14 @@ struct VertexOutput {  // type for return value of vertex shader
 
 @vertex
 fn vertexMain(
+         @builtin(vertex_index) vertexNumInPoint: u32,
+         @builtin(instance_index) pointNum: u32,
          @location(0) coords : vec2f, 
          @location(1) color : vec3f  
       ) -> VertexOutput {  
    var output: VertexOutput;  
    output.position = vec4f( coords, 0, 1 );
-   output.color = color; 
+   output.color = color;
    return output;
 }
 
