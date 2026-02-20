@@ -15,28 +15,113 @@ async function getTextContent(elementID) {
     return fetch(document.getElementById(elementID).src).then(r => r.text());
 }
 
-async function initWebGPU() {
-
-    if (!navigator.gpu) {
-        throw Error("WebGPU not supported in this browser.");
+class Renderer {
+    constructor() {
+        this.canvas = document.getElementById("canvas");
+        this.context = this.canvas.getContext("webgpu");
     }
-    let adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) {
-        throw Error("WebGPU is supported, but couldn't get WebGPU adapter.");
+    async init(format = null, alphaMode = "premultiplied") {
+        if (!navigator.gpu) {
+            throw Error("WebGPU not supported in this browser.");
+        }
+        this.adapter = await navigator.gpu.requestAdapter();
+        if (!this.adapter) {
+            throw Error("WebGPU is supported, but couldn't get WebGPU adapter.");
+        }
+
+        this.device = await this.adapter.requestDevice();
+        this.context.configure({
+            device: this.device,
+            format: format || navigator.gpu.getPreferredCanvasFormat(),
+            alphaMode: alphaMode
+        });
+        
+        this.commandEncoder = this.device.createCommandEncoder();
     }
 
-    let device = await adapter.requestDevice();
-    let canvas = document.getElementById("canvas");
-    let context = canvas.getContext("webgpu");
-    context.configure({
-        device: device,
-        format: navigator.gpu.getPreferredCanvasFormat(),
-        alphaMode: "premultiplied" // (the alternative is "opaque")
-    });
+    createShader(code) {
+        return this.device.createShaderModule({code: code});
+    }
 
-    // Create a shader module from the shader code.
-    let shaderModule = device.createShaderModule({ code: await getTextContent("shader") });
+    createBindGroupLayout(entries) {
+        return this.device.createBindGroupLayout(entries);
+    }
 
+    createBindGroup(layout, entries) {
+        return this.device.createBindGroup({layout: layout, entries: entries});
+    }
+
+    createPipelineLayout(descriptor) {
+        return this.device.createPipelineLayout(descriptor);
+    }
+
+    createPipeline(descriptor) {
+        return this.device.createRenderPipeline(descriptor);
+    }
+
+    createBuffer(size, usage) {
+        return this.device.createBuffer({
+            size: size,
+            usage: usage
+        });
+    }
+
+    createTexture(size, format, sampleCount, usage) {
+        return this.device.createTexture({
+            size: size,
+            format: format,
+            sampleCount: sampleCount,
+            usage: usage
+        });
+    }
+
+    writeBuffer(buffer, data) {
+        this.device.queue.writeBuffer(buffer, 0, data);
+    }
+
+    getCurrentTexture() {
+        return this.context.getCurrentTexture();
+    }
+
+    draw(vertexCount, renderPassDescriptor, pipeline, vertexBuffers, bindGroups) {
+        let passEncoder = this.commandEncoder.beginRenderPass(renderPassDescriptor);
+        passEncoder.setPipeline(pipeline);
+        for (let i = 0; i < vertexBuffers.length; i++) {
+            passEncoder.setVertexBuffer(i, vertexBuffers[i]);
+        }
+        for (let i = 0; i < bindGroups.length; i++) {
+            passEncoder.setBindGroup(i, bindGroups[i]);
+        }
+        passEncoder.draw(vertexCount);
+        passEncoder.end();
+    }
+
+    drawIndexed(indexCount, renderPassDescriptor, pipeline, indexBuffer, vertexBuffers, bindGroups) {
+        let passEncoder = this.commandEncoder.beginRenderPass(renderPassDescriptor);
+        passEncoder.setPipeline(pipeline);
+        for (let i = 0; i < vertexBuffers.length; i++) {
+            passEncoder.setVertexBuffer(i, vertexBuffers[i]);
+        }
+        passEncoder.setIndexBuffer(indexBuffer, "uint32");
+        for (let i = 0; i < bindGroups.length; i++) {
+            passEncoder.setBindGroup(i, bindGroups[i]);
+        }
+        passEncoder.drawIndexed(indexCount);
+        passEncoder.end();
+    }
+
+    render() {
+        let commandBuffer = this.commandEncoder.finish();
+        this.device.queue.submit([commandBuffer]);
+        requestAnimationFrame(() => this.render());
+    }
+}
+
+window.addEventListener("load", async () => {
+    let renderer = new Renderer();
+    await renderer.init();
+    let shaderModule = renderer.createShader(await getTextContent("shader"));
+    
     let vertexBufferLayout = [
         {   // One vertex buffer, containing values for two attributes.
             attributes: [
@@ -48,7 +133,7 @@ async function initWebGPU() {
         }
     ];
 
-    let uniformBindGroupLayout = device.createBindGroupLayout({
+    let uniformBindGroupLayout = renderer.createBindGroupLayout({
         entries: [ // An array of resource specifications.
             {
                 binding: 0,
@@ -76,15 +161,14 @@ async function initWebGPU() {
         primitive: {
             topology: "triangle-list"
         },
-        layout: device.createPipelineLayout({
+        layout: renderer.createPipelineLayout({
             bindGroupLayouts: [uniformBindGroupLayout]
         }),
         multisample: {  // Sets number of samples for multisampling.
             count: 4,     //  (1 and 4 are currently the only possible values).
         },
     };
-
-    let pipeline = device.createRenderPipeline(pipelineDescriptor);
+    let pipeline = renderer.createPipeline(pipelineDescriptor);
 
     let pipelineDescriptorForOutline = {
         vertex: { // Configuration for the vertex shader.
@@ -102,89 +186,51 @@ async function initWebGPU() {
         primitive: {
             topology: "line-strip"
         },
-        layout: device.createPipelineLayout({
+        layout: renderer.createPipelineLayout({
             bindGroupLayouts: [uniformBindGroupLayout]
         }),
         multisample: {  // Sets number of samples for multisampling.
             count: 4,     //  (1 and 4 are currently the only possible values).
         },
     };
-    let pipelineForOutline = device.createRenderPipeline(pipelineDescriptorForOutline);
+    let pipelineForOutline = renderer.createPipeline(pipelineDescriptorForOutline);
 
-    // build vertex and uniform buffer
-    let vertexBuffer = device.createBuffer({
-        size: vertexData.byteLength,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-    });
+    let vertexBuffer = renderer.createBuffer(vertexData.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+    let indexBuffer = renderer.createBuffer(indexData.byteLength, GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST);
+    let uniformBuffer = renderer.createBuffer(3 * 4, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
 
-    let indexBuffer = device.createBuffer({
-        size: indexData.byteLength,
-        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST
-    });
+    let uniformBindGroup = renderer.createBindGroup(uniformBindGroupLayout, [
+        {
+            binding: 0,
+            resource: { buffer: uniformBuffer }
+        }
+    ]);
 
-    let uniformBuffer = device.createBuffer({
-        size: 3 * 4,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-
-    let uniformBindGroup = device.createBindGroup({
-        layout: uniformBindGroupLayout,
-        entries: [
-            {
-                binding: 0, // Corresponds to the binding 0 in the layout.
-                resource: { buffer: uniformBuffer, offset: 0, size: 3 * 4 }
-            }
-        ]
-    });
-
-    device.queue.writeBuffer(vertexBuffer, 0, vertexData);
-    device.queue.writeBuffer(indexBuffer, 0, indexData);
-
-    let textureForMultisampling = device.createTexture({
-        size: [context.canvas.width, context.canvas.height],
-        sampleCount: 4,  // (1 and 4 are currently the only possible values.)
-        format: navigator.gpu.getPreferredCanvasFormat(),
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+    renderer.writeBuffer(vertexBuffer, vertexData);
+    renderer.writeBuffer(indexBuffer, indexData);
+    let textureForMultisampling = renderer.createTexture(
+        [renderer.canvas.width, renderer.canvas.height],
+        navigator.gpu.getPreferredCanvasFormat(),
+        4,
+        GPUTextureUsage.RENDER_ATTACHMENT
+    );
     let textureViewForMultisampling = textureForMultisampling.createView();
 
     // drawing
-    let commandEncoder = device.createCommandEncoder();
     let renderPassDescriptor = {
         colorAttachments: [{
             clearValue: { r: 0.5, g: 0.5, b: 0.5, a: 1 },  // gray background
             loadOp: "clear", // Alternative is "load".
             storeOp: "store",  // Alternative is "discard".
             view: textureViewForMultisampling, // Render to multisampling texture.
-            resolveTarget: context.getCurrentTexture().createView() // Final image.
+            resolveTarget: renderer.getCurrentTexture().createView() // Resolve to the canvas.
         }]
     };
-
-    let passEncoder;
+    
     renderPassDescriptor.colorAttachments[0].loadOp = "clear";
-    passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-    passEncoder.setPipeline(pipeline);            // Specify pipeline.
-    passEncoder.setVertexBuffer(0, vertexBuffer);  // Attach vertex buffer.
-    passEncoder.setVertexBuffer(1, vertexBuffer);  // Attach vertex buffer.
-    passEncoder.setIndexBuffer(indexBuffer, "uint32");
-    passEncoder.setBindGroup(0, uniformBindGroup); // Attach bind group.
-    passEncoder.drawIndexed(3);                          // Generate vertices.
-    passEncoder.end();
-
-    /* Second render pass draws the outline, using a "line-strip" topology. */
-    renderPassDescriptor.colorAttachments[0].loadOp = "load"; // DON'T clear!
-    passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-    passEncoder.setPipeline(pipelineForOutline); // uses "line-strip"
-    passEncoder.setVertexBuffer(0, vertexBuffer);
-    passEncoder.setVertexBuffer(1, vertexBuffer);  // Attach vertex buffer.
-    passEncoder.setBindGroup(0, uniformBindGroup);
-    passEncoder.draw(3);
-    passEncoder.end();
-
-    let commandBuffer = commandEncoder.finish();
-    device.queue.submit([commandBuffer]);
-}
-
-window.addEventListener("load", async () => {
-    await initWebGPU();
+    renderer.drawIndexed(3, renderPassDescriptor, pipeline, indexBuffer, [vertexBuffer, vertexBuffer], [uniformBindGroup]);
+    
+    renderPassDescriptor.colorAttachments[0].loadOp = "load";
+    renderer.draw(3, renderPassDescriptor, pipelineForOutline, [vertexBuffer, vertexBuffer], [uniformBindGroup]);
+    renderer.render();
 });
