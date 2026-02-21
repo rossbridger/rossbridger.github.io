@@ -1,5 +1,7 @@
-# rossbridger.github.io
-Just some of the web works
+# My personal website
+=====================
 
-[My WebGPU renderer](renderer.html)
-[Vue.js experiments](vue-main.html)
+I'm just terrible at making websites 🤣
+
+* [My WebGPU renderer](renderer.html)
+* [Vue.js experiments](vue-main.html)
