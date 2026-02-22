@@ -14,15 +14,22 @@
     <main>
         <div id="app">
             <h1>{{ message }}</h1>
+            <input
+            type="checkbox"
+            :checked="modelValue"
+            @change="$emit('update:modelValue', !modelValue)"
+            >
         </div>
     </main>
     <script>
         const app = Vue.createApp({
-            setup() {
+            data() {
+                modelValue = Vue.ref(true);
                 return {
-                    message: 'Hello Vue!'
+                    message: 'Hello Vue again!',
+                    modelValue: modelValue,
                 }
-            }
+            },
         })
         app.mount('#app')
     </script>
