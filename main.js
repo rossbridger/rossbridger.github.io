@@ -1,11 +1,18 @@
 "use strict";
 
 import { Renderer } from "./renderer.js";
+import {
+  vec3,
+  mat4,
+} from 'https://wgpu-matrix.org/dist/3.x/wgpu-matrix.module.js';
 
 let canvas;
 let dragging = false;  // set to true when a drag action is in progress.
 let startX, startY;    // coordinates of mouse at start of drag.
 let prevX, prevY;      // previous mouse position during a drag.
+
+let projectionMatrix = mat4.perspective( Math.PI/4, 1, 1, 50 );  // does not change in this program
+let viewMatrix = mat4.lookAt(vec3.fromValues(0, 0, 5), vec3.fromValues(0, 0, 0), vec3.fromValues(0, 1, 0));
 
 const vertexData = new Float32Array([
     /* coords */     /* color */
@@ -18,10 +25,17 @@ const indexData = new Uint32Array([
     0, 1, 2
 ]);
 
-async function getTextContent(elementID) {
+async function loadShader(elementID) {
     return fetch(document.getElementById(elementID).src).then(r => r.text());
 }
 
+async function loadTexture(URL) {
+       // Standard method using the fetch API to get a texture from a ULR.
+    let response = await fetch(URL);
+    let blob = await response.blob();  // Get image data as a "blob".
+    let imageBitmap = await createImageBitmap(blob);
+    return imageBitmap
+}
 function doMouseDown(evt) {
     // This function is called when the user presses a button on the mouse.
     // Only the main mouse button will start a drag.
@@ -52,6 +66,12 @@ function doMouseMove(evt) {
     const x = Math.round(evt.clientX - r.left);   // (x,y) mouse position in canvas coordinates
     const y = Math.round(evt.clientY - r.top);
 
+    viewMatrix = mat4.multiply(
+        mat4.rotationY((x - prevX)),  // rotate around Y axis by an amount based on horizontal mouse movement since last mousemove event
+        mat4.rotationX((y - prevY)),  // rotate around X axis by an amount based on vertical mouse movement since last mousemove event
+        viewMatrix
+    );
+    console.log("viewMatrix = ", viewMatrix);
 
     prevX = x;  // update prevX,prevY to prepare for next call to doMouseMove
     prevY = y;
@@ -67,12 +87,11 @@ function doMouseUp(evt) {
     document.removeEventListener("mouseup", doMouseMove, false);
 }
 
-
-async function render() {
+async function initGraphics() {
     let renderer = new Renderer(canvas);
     await renderer.init();
-    let shaderModule = renderer.createShader(await getTextContent("shader"));
-    
+    let shaderModule = renderer.createShader(await loadShader("shader"));
+    let texture = await loadTexture("https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/Checkerboard_pattern.svg/1280px-Checkerboard_pattern.svg.png");
     let vertexBufferLayout = [
         {   // One vertex buffer, containing values for two attributes.
             attributes: [
@@ -84,11 +103,18 @@ async function render() {
         }
     ];
 
-    let uniformBindGroupLayout = renderer.createBindGroupLayout({
+    let uniformBindGroupLayout0 = renderer.createBindGroupLayout({
         entries: [ // An array of resource specifications.
             {
                 binding: 0,
-                visibility: GPUShaderStage.FRAGMENT,
+                visibility: GPUShaderStage.VERTEX,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 1,
+                visibility: GPUShaderStage.VERTEX,
                 buffer: {
                     type: "uniform"
                 }
@@ -113,7 +139,7 @@ async function render() {
             topology: "triangle-list"
         },
         layout: renderer.createPipelineLayout({
-            bindGroupLayouts: [uniformBindGroupLayout]
+            bindGroupLayouts: [uniformBindGroupLayout0]
         }),
         multisample: {  // Sets number of samples for multisampling.
             count: 4,     //  (1 and 4 are currently the only possible values).
@@ -138,7 +164,7 @@ async function render() {
             topology: "line-strip"
         },
         layout: renderer.createPipelineLayout({
-            bindGroupLayouts: [uniformBindGroupLayout]
+            bindGroupLayouts: [uniformBindGroupLayout0]
         }),
         multisample: {  // Sets number of samples for multisampling.
             count: 4,     //  (1 and 4 are currently the only possible values).
@@ -148,12 +174,17 @@ async function render() {
 
     let vertexBuffer = renderer.createBuffer(vertexData.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
     let indexBuffer = renderer.createBuffer(indexData.byteLength, GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST);
-    let uniformBuffer = renderer.createBuffer(3 * 4, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    let viewBuffer = renderer.createBuffer(16 * 4, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    let projectionBuffer = renderer.createBuffer(16 * 4, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
 
-    let uniformBindGroup = renderer.createBindGroup(uniformBindGroupLayout, [
+    let uniformBindGroup0 = renderer.createBindGroup(uniformBindGroupLayout0, [
         {
             binding: 0,
-            resource: { buffer: uniformBuffer }
+            resource: { buffer: viewBuffer }
+        },
+        {
+            binding: 1,
+            resource: { buffer: projectionBuffer }
         }
     ]);
 
@@ -179,12 +210,22 @@ async function render() {
     };
     
     renderPassDescriptor.colorAttachments[0].loadOp = "clear";
-    renderer.drawIndexed(3, renderPassDescriptor, pipeline, indexBuffer, [vertexBuffer, vertexBuffer], [uniformBindGroup]);
+    renderer.drawIndexed(3, renderPassDescriptor, pipeline, indexBuffer, [vertexBuffer, vertexBuffer], [uniformBindGroup0]);
     
     renderPassDescriptor.colorAttachments[0].loadOp = "load";
-    renderer.draw(3, renderPassDescriptor, pipelineForOutline, [vertexBuffer, vertexBuffer], [uniformBindGroup]);
-    renderer.render();
+    renderer.draw(3, renderPassDescriptor, pipelineForOutline, [vertexBuffer, vertexBuffer], [uniformBindGroup0]);
+
+    
+    function render() {
+        renderer.writeBuffer(projectionBuffer, projectionMatrix);
+        renderer.writeBuffer(viewBuffer, viewMatrix);
+        console.log("writing viewMatrix = ", viewMatrix);
+        renderer.render();
+        requestAnimationFrame(render);
+    }
+    render();
 }
+
 
 function init() {
     try {
@@ -196,7 +237,7 @@ function init() {
         return;
     }
     document.addEventListener("mousedown", doMouseDown);
-    render();
+    initGraphics();
 }
 
 window.onload = init; // arranges for function init to be called when page is loaded

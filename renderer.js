@@ -64,6 +64,14 @@ export class Renderer {
         this.device.queue.writeBuffer(buffer, 0, data);
     }
 
+    writeTexture(texture, imageBitmap, flipY = true) {
+        this.device.queue.copyExternalImageToTexture(
+        { source: imageBitmap, flipY: flipY },
+        { texture: texture },
+        [imageBitmap.width, imageBitmap.height]
+        );
+    }
+
     getCurrentTexture() {
         return this.context.getCurrentTexture();
     }
@@ -98,6 +106,5 @@ export class Renderer {
     render() {
         let commandBuffer = this.commandEncoder.finish();
         this.device.queue.submit([commandBuffer]);
-        requestAnimationFrame(() => this.render());
     }
 }

@@ -4,6 +4,9 @@ struct VertexOutput {  // type for return value of vertex shader
    @location(0) color : vec3f  
 }
 
+@group(0) @binding(0) var<uniform> view : mat4x4<f32>;
+@group(0) @binding(1) var<uniform> projection : mat4x4<f32>;
+
 @vertex
 fn vertexMain(
          @builtin(vertex_index) vertexNumInPoint: u32,
@@ -11,8 +14,8 @@ fn vertexMain(
          @location(0) coords : vec2f, 
          @location(1) color : vec3f  
       ) -> VertexOutput {  
-   var output: VertexOutput;  
-   output.position = vec4f( coords, 0, 1 );
+   var output: VertexOutput;
+   output.position = projection * view * vec4f( coords, 1, 1 );
    output.color = color;
    return output;
 }
