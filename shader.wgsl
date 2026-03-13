@@ -1,7 +1,8 @@
 struct VertexOutput {  // type for return value of vertex shader
    @builtin(position) position: vec4f,
    @location(0) eyeCoords: vec3f,
-   @location(1) color: vec4f
+   @location(1) color: vec4f,
+   @location(2) uv: vec2f
 };
 
 struct DiskInfo {
@@ -16,19 +17,20 @@ struct UniformData {
 
 @group(0) @binding(0) var<uniform> uniformData: UniformData;
 
-@group(0) @binding(1) var<storage, read> diskInfo: array<DiskInfo>;
+//@group(0) @binding(1) var<storage, read> diskInfo: array<DiskInfo>;
 
 @vertex
 fn vertexMain( 
-          @location(0) coords : vec2f,
-          @builtin(instance_index) instance : u32
+          @location(0) coords : vec3f,
+          @location(1) uv : vec2f
        ) -> VertexOutput {
 
-   let eyeCoords = uniformData.modelview * vec4f(coords + diskInfo[instance].offset, 0, 1);
-   var output : VertexOutput; // (A struct with position and color fields.)
+   let eyeCoords = uniformData.modelview * vec4f(coords, 1);
+   var output : VertexOutput;
     output.position = uniformData.projection * eyeCoords;
     output.eyeCoords = eyeCoords.xyz/eyeCoords.w;  // convert to (x,y,z) coords
-    output.color = vec4f(diskInfo[instance].color, 0, 1);
+    output.color = vec4f(coords, 1);
+    output.uv = uv;
     return output;
 }
 

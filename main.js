@@ -1,10 +1,6 @@
 "use strict";
 
-import { Renderer } from "./renderer.js";
-import {
-  vec3,
-  mat4,
-} from 'https://wgpu-matrix.org/dist/3.x/wgpu-matrix.module.js';
+import { installMouseHandler, Renderer } from "./renderer.js";
 
 let canvas;
 
@@ -17,6 +13,18 @@ async function init() {
             "An error occurred while initializing graphics.</p>";
         return;
     }
+
+    const observer = new ResizeObserver(entries => {
+        for (const entry of entries) {
+            const width = entry.contentBoxSize[0].inlineSize;
+            const height = entry.contentBoxSize[0].blockSize;
+            const canvas = entry.target;
+            canvas.width = Math.max(1, Math.floor(width));
+            canvas.height = Math.max(1, Math.floor(height));
+        }
+    });
+    observer.observe(canvas);
+    installMouseHandler();
 
     let renderer = new Renderer(canvas);
     await renderer.init();
