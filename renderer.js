@@ -4,8 +4,11 @@ async function loadShader(elementID) {
     return fetch(document.getElementById(elementID).src).then(r => r.text());
 }
 
-const vertexCoords = new Float32Array([
-    -0.8, -0.6, 0.8, -0.6, 0, 0.7
+const vertexData = new Float32Array([
+   /* coords */      /* offset */    /* color */
+    -0.8, -0.6,      0.0, 0.0,       1, 0, 0,      // data for first vertex
+    0.8, -0.6,       0.0, 0.0,       0, 1, 0,      // data for second vertex
+    0.0, 0.7,        0.0, 0.0,       0, 0, 1       // data for third vertex
 ]);
 
 export class Renderer {
@@ -46,8 +49,12 @@ export class Renderer {
     createPipeline() {
         this.vertexBufferLayout = [ // An array of vertex buffer specifications.
             {
-                attributes: [{ shaderLocation: 0, offset: 0, format: "float32x2" }],
-                arrayStride: 8,
+                attributes: [
+                    { shaderLocation: 0, offset: 0, format: "float32x2" },
+                    { shaderLocation: 1, offset: 8, format: "float32x2" },
+                    { shaderLocation: 2, offset: 16, format: "float32x3" }
+                ],
+                arrayStride: 28,
                 stepMode: "vertex"
             }
         ];
@@ -89,7 +96,7 @@ export class Renderer {
 
     createBuffers() {
         this.vertexBuffer = this.device.createBuffer({
-            size: vertexCoords.byteLength,
+            size: vertexData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
         });
         this.uniformBuffer = this.device.createBuffer({
@@ -111,7 +118,7 @@ export class Renderer {
     }
 
     loadVertexAndIndexBuffers() {
-        this.device.queue.writeBuffer(this.vertexBuffer, 0, vertexCoords);
+        this.device.queue.writeBuffer(this.vertexBuffer, 0, vertexData);
     }
 
     updateUniformBuffers() {
