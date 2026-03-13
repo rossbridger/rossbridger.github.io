@@ -4,11 +4,31 @@ async function loadShader(elementID) {
     return fetch(document.getElementById(elementID).src).then(r => r.text());
 }
 
-const vertexData = new Float32Array([
-   /* coords */      /* offset */    /* color */
-    -0.8, -0.6,      0.0, 0.0,       1, 0, 0,      // data for first vertex
-    0.8, -0.6,       0.0, 0.0,       0, 1, 0,      // data for second vertex
-    0.0, 0.7,        0.0, 0.0,       0, 0, 1       // data for third vertex
+const VERTEX_COUNT = 12;
+const RADIUS = 0.5;
+
+let diskIndices = new Uint16Array(3 * VERTEX_COUNT);
+
+// build disk index buffer
+for (let i = 0; i < VERTEX_COUNT; i++) {
+    diskIndices[3*i] = VERTEX_COUNT;  // center of disk
+    diskIndices[3*i+1] = i;             // vertex number i
+    diskIndices[3*i+2] = (i+1) % VERTEX_COUNT; // vertex number (i+1);
+}
+
+// now vertex buffer
+let vertexData = new Float32Array(2*(VERTEX_COUNT + 1));
+for (let i = 0; i < VERTEX_COUNT; i++) {
+    vertexData[i*2] = Math.cos(i * 2 * Math.PI / VERTEX_COUNT) * RADIUS;
+    vertexData[i*2+1] = Math.sin(i * 2 * Math.PI / VERTEX_COUNT) * RADIUS;
+}
+// center of disk
+vertexData[VERTEX_COUNT*2] = 0.0;
+vertexData[VERTEX_COUNT*2+1] = 0.0;
+
+// two instances for now:             offset          color
+const instanceData = new Float32Array([-0.5, -0.5,    1.0, 0.0, 0.0,
+                                       0.5, 0.5, 0.0, 1.0, 0.0,
 ]);
 
 export class Renderer {
@@ -50,12 +70,18 @@ export class Renderer {
         this.vertexBufferLayout = [ // An array of vertex buffer specifications.
             {
                 attributes: [
-                    { shaderLocation: 0, offset: 0, format: "float32x2" },
-                    { shaderLocation: 1, offset: 8, format: "float32x2" },
-                    { shaderLocation: 2, offset: 16, format: "float32x3" }
+                    { shaderLocation: 0, offset: 0, format: "float32x2" }
                 ],
-                arrayStride: 28,
+                arrayStride: 8,
                 stepMode: "vertex"
+            },
+            { // Second vertex buffer, for instance offsets.
+                attributes: [
+                    { shaderLocation: 1, offset: 0, format: "float32x2" },
+                    { shaderLocation: 2, offset: 8, format: "float32x3" }
+                ],
+                arrayStride: 20,
+                stepMode: "instance"  // This is an instance attribute.
             }
         ];
 
@@ -99,9 +125,17 @@ export class Renderer {
             size: vertexData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
         });
+        this.instanceBuffer = this.device.createBuffer({
+            size: instanceData.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
         this.uniformBuffer = this.device.createBuffer({
             size: 3 * 4,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+        this.indexBuffer = this.device.createBuffer({
+            size: diskIndices.byteLength,
+            usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST
         });
     }
 
@@ -119,13 +153,15 @@ export class Renderer {
 
     loadVertexAndIndexBuffers() {
         this.device.queue.writeBuffer(this.vertexBuffer, 0, vertexData);
+        this.device.queue.writeBuffer(this.instanceBuffer, 0, instanceData);
+        this.device.queue.writeBuffer(this.indexBuffer, 0, diskIndices);
     }
 
     updateUniformBuffers() {
         this.device.queue.writeBuffer(this.uniformBuffer, 0, new Float32Array([0.0, 0.5, 0.0]));
     }
 
-    buildCommandBuffer() {
+    draw() {
         let commandEncoder = this.device.createCommandEncoder();
         let renderPassDescriptor = {
             colorAttachments: [{
@@ -139,13 +175,12 @@ export class Renderer {
         let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
         passEncoder.setPipeline(this.pipeline);            // Specify pipeline.
         passEncoder.setVertexBuffer(0, this.vertexBuffer);  // Attach vertex buffer.
+        passEncoder.setVertexBuffer(1, this.instanceBuffer); // Attach instance buffer.
+        passEncoder.setIndexBuffer(this.indexBuffer, "uint16"); // Attach index buffer.
         passEncoder.setBindGroup(0, this.uniformBindGroup); // Attach bind group.
-        passEncoder.draw(3);                          // Generate vertices.
+        passEncoder.drawIndexed(3 * VERTEX_COUNT, 2);
         passEncoder.end();
-        this.commandBuffer = commandEncoder.finish();
-    }
 
-    draw() {
-        this.device.queue.submit([this.commandBuffer]);
+        this.device.queue.submit([commandEncoder.finish()]);
     }
 }
