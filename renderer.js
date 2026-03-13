@@ -147,10 +147,8 @@ export class Renderer {
         this.context = canvas.getContext("webgpu");
         this.adapter = null;
         this.device = null;
-
-        // install event handlers
-
     }
+
     async init(format = null, alphaMode = "premultiplied") {
         if (!navigator.gpu) {
             throw Error("WebGPU not supported in this browser.");
@@ -170,6 +168,14 @@ export class Renderer {
             size: [this.context.canvas.width, this.context.canvas.height],  // size of canvas
             format: "depth24plus",
             usage: GPUTextureUsage.RENDER_ATTACHMENT
+        });
+        this.sampler = this.device.createSampler({
+            addressModeU: "repeat",  // Default is "clamp-to-edge".
+            addressModeV: "repeat",  //    (The other possible value is "mirror-repeat".)
+            minFilter: "linear",
+            magFilter: "linear",     // Default for filters is "nearest".
+            mipmapFilter: "linear",
+            maxAnisotropy: 16        // 1 is the default; 16 is the maximum.
         });
         console.log("WebGPU initialized.")
     }
@@ -195,7 +201,7 @@ export class Renderer {
                 stepMode: "vertex"
             }
         ];
-
+/*
         this.uniformBindGroupLayout = this.device.createBindGroupLayout({
             entries: [ // An array of resource specifications.
                 {
@@ -205,16 +211,15 @@ export class Renderer {
                         type: "uniform"
                     }
                 }
-                /*{
                     binding: 1,
                     visibility: GPUShaderStage.VERTEX,
                     buffer: {
                         type: "read-only-storage"
                     }
-                }*/
+                }
             ]
         });
-
+*/
         let pipelineDescriptor = {
             vertex: { // Configuration for the vertex shader.
                 module: this.shader,
@@ -231,9 +236,7 @@ export class Renderer {
             primitive: {
                 topology: "triangle-list"
             },
-            layout: this.device.createPipelineLayout({
-                bindGroupLayouts: [this.uniformBindGroupLayout]
-            }),
+            layout: "auto",
             depthStencil: {
                 format: "depth24plus",
                 depthWriteEnabled: true,
@@ -269,7 +272,7 @@ export class Renderer {
 
     createBindGroups() {
         this.uniformBindGroup = this.device.createBindGroup({
-            layout: this.uniformBindGroupLayout,
+            layout: this.pipeline.getBindGroupLayout(0),
             entries: [
                 {
                     binding: 0,
@@ -288,7 +291,7 @@ export class Renderer {
         //this.device.queue.writeBuffer(this.indexBuffer, 0, cubeIndices);
     }
 
-    updateUniformBuffers() {
+    updateTransforms() {
         let projectionMatrix = mat4.perspective(fov, this.canvas.width / this.canvas.height, 0.1, 100);
         let modelViewMatrix = mat4.lookAt(camaraPosition, vec3.add(camaraPosition, cameraFront), cameraUp);
         this.device.queue.writeBuffer(this.uniformBuffer, 0, modelViewMatrix);
@@ -297,6 +300,38 @@ export class Renderer {
 
     updateStorageBuffers() {
         //this.device.queue.writeBuffer(this.storageBuffer, 0, instanceData);
+    }
+
+    async loadTexture(URL) {
+        // Standard method using the fetch API to get a texture from a ULR.
+        let response = await fetch(URL);
+        let blob = await response.blob();  // Get image data as a "blob".
+        let imageBitmap = await createImageBitmap(blob);
+        let texture = this.device.createTexture({
+            size: [imageBitmap.width, imageBitmap.height],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.RENDER_ATTACHMENT
+        });
+        this.device.queue.copyExternalImageToTexture(
+            { source: imageBitmap, flipY: true },
+            { texture: texture },
+            [imageBitmap.width, imageBitmap.height]
+        );
+        this.texture = texture;
+        this.textureBindGroup = this.device.createBindGroup({
+            layout: this.pipeline.getBindGroupLayout(1),
+            entries: [ // An array of resource specifications.
+                {
+                    binding: 0,
+                    resource: this.texture.createView()
+                },
+                {
+                    binding: 1,
+                    resource: this.sampler
+                }
+            ]
+        });
     }
 
     draw() {
@@ -321,6 +356,7 @@ export class Renderer {
         passEncoder.setVertexBuffer(0, this.vertexBuffer);  // Attach vertex buffer.
         //passEncoder.setIndexBuffer(this.indexBuffer, "uint16"); // Attach index buffer.
         passEncoder.setBindGroup(0, this.uniformBindGroup); // Attach bind group.
+        passEncoder.setBindGroup(1, this.textureBindGroup); // Attach bind group.
         passEncoder.draw(36);
         passEncoder.end();
 

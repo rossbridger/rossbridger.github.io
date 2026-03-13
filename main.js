@@ -32,11 +32,12 @@ async function init() {
     renderer.createPipeline();
     renderer.createBuffers();
     renderer.createBindGroups();
+    await renderer.loadTexture("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/960px-FullMoon2010.jpg");
     renderer.loadVertexAndIndexBuffers();
     renderer.updateStorageBuffers();
 
     function draw() {
-        renderer.updateUniformBuffers();
+        renderer.updateTransforms();
         renderer.draw();
         requestAnimationFrame(draw);
     }
