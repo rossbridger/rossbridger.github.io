@@ -2,9 +2,10 @@
 <html>
 <head>
     <title>My WebGPU renderer</title>
-    <script type="text/plain" src="shader.wgsl" id="shader" , crossorigin="anonymous"></script>
+    <script type="text/wgsl" src="shader.wgsl" id="shader"></script>
     <script type="module" src="renderer.js"></script>
     <script type="module" src="https://wgpu-matrix.org/dist/3.x/wgpu-matrix.module.js"></script>
+    <script type="module" src="https://unpkg.com/loaders.gl@0.3.5/src/gltf-loader/gltf-loader.js"></script>
     <script type="module" src="main.js"></script>
 </head>
 <style>

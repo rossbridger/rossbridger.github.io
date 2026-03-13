@@ -1,9 +1,19 @@
 "use strict";
 
+async function loadShader(elementID) {
+    return fetch(document.getElementById(elementID).src).then(r => r.text());
+}
+
+const vertexCoords = new Float32Array([
+    -0.8, -0.6, 0.8, -0.6, 0, 0.7
+]);
+
 export class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
         this.context = canvas.getContext("webgpu");
+        this.adapter = null;
+        this.device = null;
     }
     async init(format = null, alphaMode = "premultiplied") {
         if (!navigator.gpu) {
@@ -20,91 +30,115 @@ export class Renderer {
             format: format || navigator.gpu.getPreferredCanvasFormat(),
             alphaMode: alphaMode
         });
-        
-        this.commandEncoder = this.device.createCommandEncoder();
+        console.log("WebGPU initialized.")
     }
 
-    createShader(code) {
-        return this.device.createShaderModule({code: code});
-    }
-
-    createBindGroupLayout(entries) {
-        return this.device.createBindGroupLayout(entries);
-    }
-
-    createBindGroup(layout, entries) {
-        return this.device.createBindGroup({layout: layout, entries: entries});
-    }
-
-    createPipelineLayout(descriptor) {
-        return this.device.createPipelineLayout(descriptor);
-    }
-
-    createPipeline(descriptor) {
-        return this.device.createRenderPipeline(descriptor);
-    }
-
-    createBuffer(size, usage) {
-        return this.device.createBuffer({
-            size: size,
-            usage: usage
+    async createShaders() {
+        let code = await loadShader("shader");
+        if (!this.device) {
+            throw Error("WebGPU device not initialized.");
+        }
+        this.shader = this.device.createShaderModule({
+            code: code
         });
     }
 
-    createTexture(size, format, sampleCount, usage) {
-        return this.device.createTexture({
-            size: size,
-            format: format,
-            sampleCount: sampleCount,
-            usage: usage
+    createPipeline() {
+        this.vertexBufferLayout = [ // An array of vertex buffer specifications.
+            {
+                attributes: [{ shaderLocation: 0, offset: 0, format: "float32x2" }],
+                arrayStride: 8,
+                stepMode: "vertex"
+            }
+        ];
+
+        this.uniformBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [ // An array of resource specifications.
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "uniform"
+                    }
+                }
+            ]
+        });
+
+        let pipelineDescriptor = {
+            vertex: { // Configuration for the vertex shader.
+                module: this.shader,
+                entryPoint: "vertexMain",
+                buffers: this.vertexBufferLayout
+            },
+            fragment: { // Configuration for the fragment shader.
+                module: this.shader,
+                entryPoint: "fragmentMain",
+                targets: [{
+                    format: navigator.gpu.getPreferredCanvasFormat()
+                }]
+            },
+            primitive: {
+                topology: "triangle-list"
+            },
+            layout: this.device.createPipelineLayout({
+                bindGroupLayouts: [this.uniformBindGroupLayout]
+            })
+        };
+        this.pipeline = this.device.createRenderPipeline(pipelineDescriptor);
+    }
+
+    createBuffers() {
+        this.vertexBuffer = this.device.createBuffer({
+            size: vertexCoords.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+        this.uniformBuffer = this.device.createBuffer({
+            size: 3 * 4,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
     }
 
-    writeBuffer(buffer, data) {
-        this.device.queue.writeBuffer(buffer, 0, data);
+    createBindGroups() {
+        this.uniformBindGroup = this.device.createBindGroup({
+            layout: this.uniformBindGroupLayout,
+            entries: [
+                {
+                    binding: 0, // Corresponds to the binding 0 in the layout.
+                    resource: { buffer: this.uniformBuffer, offset: 0, size: 3 * 4 } // Assuming 3 floats for color
+                }
+            ]
+        });
     }
 
-    writeTexture(texture, imageBitmap, flipY = true) {
-        this.device.queue.copyExternalImageToTexture(
-        { source: imageBitmap, flipY: flipY },
-        { texture: texture },
-        [imageBitmap.width, imageBitmap.height]
-        );
+    loadVertexAndIndexBuffers() {
+        this.device.queue.writeBuffer(this.vertexBuffer, 0, vertexCoords);
     }
 
-    getCurrentTexture() {
-        return this.context.getCurrentTexture();
+    updateUniformBuffers() {
+        this.device.queue.writeBuffer(this.uniformBuffer, 0, new Float32Array([0.0, 0.5, 0.0]));
     }
 
-    draw(vertexCount, renderPassDescriptor, pipeline, vertexBuffers, bindGroups) {
-        let passEncoder = this.commandEncoder.beginRenderPass(renderPassDescriptor);
-        passEncoder.setPipeline(pipeline);
-        for (let i = 0; i < vertexBuffers.length; i++) {
-            passEncoder.setVertexBuffer(i, vertexBuffers[i]);
-        }
-        for (let i = 0; i < bindGroups.length; i++) {
-            passEncoder.setBindGroup(i, bindGroups[i]);
-        }
-        passEncoder.draw(vertexCount);
+    buildCommandBuffer() {
+        let commandEncoder = this.device.createCommandEncoder();
+        let renderPassDescriptor = {
+            colorAttachments: [{
+                clearValue: { r: 0.5, g: 0.5, b: 0.5, a: 1 },  // gray background
+                loadOp: "clear", // Alternative is "load".
+                storeOp: "store",  // Alternative is "discard".
+                view: this.context.getCurrentTexture().createView()  // Draw to the canvas.
+            }]
+        };
+
+        let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+        passEncoder.setPipeline(this.pipeline);            // Specify pipeline.
+        passEncoder.setVertexBuffer(0, this.vertexBuffer);  // Attach vertex buffer.
+        passEncoder.setBindGroup(0, this.uniformBindGroup); // Attach bind group.
+        passEncoder.draw(3);                          // Generate vertices.
         passEncoder.end();
+        this.commandBuffer = commandEncoder.finish();
     }
 
-    drawIndexed(indexCount, renderPassDescriptor, pipeline, indexBuffer, vertexBuffers, bindGroups) {
-        let passEncoder = this.commandEncoder.beginRenderPass(renderPassDescriptor);
-        passEncoder.setPipeline(pipeline);
-        for (let i = 0; i < vertexBuffers.length; i++) {
-            passEncoder.setVertexBuffer(i, vertexBuffers[i]);
-        }
-        passEncoder.setIndexBuffer(indexBuffer, "uint32");
-        for (let i = 0; i < bindGroups.length; i++) {
-            passEncoder.setBindGroup(i, bindGroups[i]);
-        }
-        passEncoder.drawIndexed(indexCount);
-        passEncoder.end();
-    }
-
-    render() {
-        let commandBuffer = this.commandEncoder.finish();
-        this.device.queue.submit([commandBuffer]);
+    draw() {
+        this.device.queue.submit([this.commandBuffer]);
     }
 }
