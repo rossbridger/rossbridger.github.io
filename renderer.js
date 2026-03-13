@@ -31,6 +31,8 @@ const instanceData = new Float32Array([-0.5, -0.5, 1.0, 0.0,
                                        0.5, 0.5,   0.0, 1.0,
 ]);
 
+const uniformData = new Float32Array(4 * 4 * 2);
+
 export class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
@@ -83,6 +85,13 @@ export class Renderer {
                     binding: 0,
                     visibility: GPUShaderStage.VERTEX,
                     buffer: {
+                        type: "uniform"
+                    }
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.VERTEX,
+                    buffer: {
                         type: "read-only-storage"
                     }
                 }
@@ -120,11 +129,11 @@ export class Renderer {
         /*this.instanceBuffer = this.device.createBuffer({
             size: instanceData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-        });
-        this.uniformBuffer = this.device.createBuffer({
-            size: 3 * 4,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });*/
+        this.uniformBuffer = this.device.createBuffer({
+            size: uniformData.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
         this.storageBuffer = this.device.createBuffer({
             size: instanceData.byteLength,
             usage: GPUBufferUsage.STORAGE |
@@ -141,7 +150,11 @@ export class Renderer {
             layout: this.uniformBindGroupLayout,
             entries: [
                 {
-                    binding: 0, // Corresponds to the binding 0 in the layout.
+                    binding: 0,
+                    resource: { buffer: this.uniformBuffer }
+                },
+                {
+                    binding: 1, // Corresponds to the binding 0 in the layout.
                     resource: { buffer: this.storageBuffer }
                 }
             ]
@@ -154,7 +167,7 @@ export class Renderer {
     }
 
     updateUniformBuffers() {
-        //this.device.queue.writeBuffer(this.uniformBuffer, 0, new Float32Array([0.0, 0.5, 0.0]));
+        this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
     }
 
     updateStorageBuffers() {
