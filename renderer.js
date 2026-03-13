@@ -11,24 +11,24 @@ let diskIndices = new Uint16Array(3 * VERTEX_COUNT);
 
 // build disk index buffer
 for (let i = 0; i < VERTEX_COUNT; i++) {
-    diskIndices[3*i] = VERTEX_COUNT;  // center of disk
-    diskIndices[3*i+1] = i;             // vertex number i
-    diskIndices[3*i+2] = (i+1) % VERTEX_COUNT; // vertex number (i+1);
+    diskIndices[3 * i] = VERTEX_COUNT;  // center of disk
+    diskIndices[3 * i + 1] = i;             // vertex number i
+    diskIndices[3 * i + 2] = (i + 1) % VERTEX_COUNT; // vertex number (i+1);
 }
 
 // now vertex buffer
-let vertexData = new Float32Array(2*(VERTEX_COUNT + 1));
+let vertexData = new Float32Array(2 * (VERTEX_COUNT + 1));
 for (let i = 0; i < VERTEX_COUNT; i++) {
-    vertexData[i*2] = Math.cos(i * 2 * Math.PI / VERTEX_COUNT) * RADIUS;
-    vertexData[i*2+1] = Math.sin(i * 2 * Math.PI / VERTEX_COUNT) * RADIUS;
+    vertexData[i * 2] = Math.cos(i * 2 * Math.PI / VERTEX_COUNT) * RADIUS;
+    vertexData[i * 2 + 1] = Math.sin(i * 2 * Math.PI / VERTEX_COUNT) * RADIUS;
 }
 // center of disk
-vertexData[VERTEX_COUNT*2] = 0.0;
-vertexData[VERTEX_COUNT*2+1] = 0.0;
+vertexData[VERTEX_COUNT * 2] = 0.0;
+vertexData[VERTEX_COUNT * 2 + 1] = 0.0;
 
 // two instances for now:             offset          color
-const instanceData = new Float32Array([-0.5, -0.5,    1.0, 0.0, 0.0,
-                                       0.5, 0.5, 0.0, 1.0, 0.0,
+const instanceData = new Float32Array([-0.5, -0.5, 1.0, 0.0,
+                                       0.5, 0.5,   0.0, 1.0,
 ]);
 
 export class Renderer {
@@ -74,14 +74,6 @@ export class Renderer {
                 ],
                 arrayStride: 8,
                 stepMode: "vertex"
-            },
-            { // Second vertex buffer, for instance offsets.
-                attributes: [
-                    { shaderLocation: 1, offset: 0, format: "float32x2" },
-                    { shaderLocation: 2, offset: 8, format: "float32x3" }
-                ],
-                arrayStride: 20,
-                stepMode: "instance"  // This is an instance attribute.
             }
         ];
 
@@ -89,9 +81,9 @@ export class Renderer {
             entries: [ // An array of resource specifications.
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.VERTEX,
                     buffer: {
-                        type: "uniform"
+                        type: "read-only-storage"
                     }
                 }
             ]
@@ -125,13 +117,18 @@ export class Renderer {
             size: vertexData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
         });
-        this.instanceBuffer = this.device.createBuffer({
+        /*this.instanceBuffer = this.device.createBuffer({
             size: instanceData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
         });
         this.uniformBuffer = this.device.createBuffer({
             size: 3 * 4,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });*/
+        this.storageBuffer = this.device.createBuffer({
+            size: instanceData.byteLength,
+            usage: GPUBufferUsage.STORAGE |
+                GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
         });
         this.indexBuffer = this.device.createBuffer({
             size: diskIndices.byteLength,
@@ -145,7 +142,7 @@ export class Renderer {
             entries: [
                 {
                     binding: 0, // Corresponds to the binding 0 in the layout.
-                    resource: { buffer: this.uniformBuffer, offset: 0, size: 3 * 4 } // Assuming 3 floats for color
+                    resource: { buffer: this.storageBuffer }
                 }
             ]
         });
@@ -153,12 +150,15 @@ export class Renderer {
 
     loadVertexAndIndexBuffers() {
         this.device.queue.writeBuffer(this.vertexBuffer, 0, vertexData);
-        this.device.queue.writeBuffer(this.instanceBuffer, 0, instanceData);
         this.device.queue.writeBuffer(this.indexBuffer, 0, diskIndices);
     }
 
     updateUniformBuffers() {
-        this.device.queue.writeBuffer(this.uniformBuffer, 0, new Float32Array([0.0, 0.5, 0.0]));
+        //this.device.queue.writeBuffer(this.uniformBuffer, 0, new Float32Array([0.0, 0.5, 0.0]));
+    }
+
+    updateStorageBuffers() {
+        this.device.queue.writeBuffer(this.storageBuffer, 0, instanceData);
     }
 
     draw() {
@@ -175,7 +175,6 @@ export class Renderer {
         let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
         passEncoder.setPipeline(this.pipeline);            // Specify pipeline.
         passEncoder.setVertexBuffer(0, this.vertexBuffer);  // Attach vertex buffer.
-        passEncoder.setVertexBuffer(1, this.instanceBuffer); // Attach instance buffer.
         passEncoder.setIndexBuffer(this.indexBuffer, "uint16"); // Attach index buffer.
         passEncoder.setBindGroup(0, this.uniformBindGroup); // Attach bind group.
         passEncoder.drawIndexed(3 * VERTEX_COUNT, 2);

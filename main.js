@@ -25,6 +25,7 @@ async function init() {
     renderer.createBuffers();
     renderer.createBindGroups();
     renderer.loadVertexAndIndexBuffers();
+    renderer.updateStorageBuffers();
 
     function draw() {
         renderer.updateUniformBuffers();
