@@ -234,7 +234,9 @@ export class Renderer {
                 }]
             },
             primitive: {
-                topology: "triangle-list"
+                topology: "triangle-list",
+                cullMode: "back",
+                frontFace: "ccw"
             },
             layout: "auto",
             depthStencil: {
