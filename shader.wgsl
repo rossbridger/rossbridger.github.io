@@ -8,7 +8,8 @@ struct DiskInfo {
     color : vec2f  // interior color for the disk
 };
 
-@group(0) @binding(0) var<uniform> viewProjectionMatrix: mat4x4f;
+@group(0) @binding(0) var<uniform> modelMatrix: mat4x4f;
+@group(0) @binding(1) var<uniform> viewProjectionMatrix: mat4x4f;
 @group(1) @binding(0) var tex : texture_2d<f32>;
 @group(1) @binding(1) var samp : sampler;
 
@@ -20,7 +21,7 @@ fn vertexMain(
 
    let eyeCoords = vec4f(coords, 1);
    var output : VertexOutput;
-    output.position = viewProjectionMatrix * eyeCoords;
+    output.position = viewProjectionMatrix * modelMatrix * eyeCoords;
     output.uv = uv;
     return output;
 }

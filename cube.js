@@ -1,6 +1,7 @@
 "use strict";
 
 import { RenderItem, Renderer } from "./renderer.js";
+import { mat4 } from 'https://wgpu-matrix.org/dist/3.x/wgpu-matrix.module.js';
 
 const cubeVertices = new Float32Array([
     -0.5, -0.5, -0.5, 0.0, 0.0,
@@ -65,6 +66,9 @@ export class Cube extends RenderItem {
         this.vertexBuffer = null;
         this.vertexBufferLayout = null;
         this.texture = null;
+        this.modelMatrix = mat4.identity();
+        this.modelMatrix = mat4.translate(this.modelMatrix, [1, 1, -3]);
+        this.modelUniformBuffer = null;
     }
     
     createPipeline() {
@@ -117,6 +121,10 @@ export class Cube extends RenderItem {
             entries: [
                 {
                     binding: 0,
+                    resource: { buffer: this.modelUniformBuffer }
+                },
+                {
+                    binding: 1,
                     resource: { buffer: this.renderer.viewProjectionUniformBuffer }
                 }
             ]
@@ -145,10 +153,18 @@ export class Cube extends RenderItem {
             size: cubeVertices.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
         });
+        this.modelUniformBuffer = this.device.createBuffer({
+            size: 4 * 4 * 4, // 4x4 matrix of 4-byte floats
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
     }
 
     loadBuffers() {
         this.device.queue.writeBuffer(this.vertexBuffer, 0, cubeVertices);
+    }
+
+    updateModelUniformBuffer() {
+        this.device.queue.writeBuffer(this.modelUniformBuffer, 0, this.modelMatrix);
     }
 
     async init() {
@@ -158,6 +174,7 @@ export class Cube extends RenderItem {
         await this.setFaceTexture("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/960px-FullMoon2010.jpg");
         this.createBindGroups();
         this.loadBuffers();
+        this.updateModelUniformBuffer();
     }
 
     onRender(commandEncoder) {
