@@ -42,15 +42,26 @@ export class Renderer {
         });
         this.depthTexture = this.device.createTexture({
             size: [this.context.canvas.width, this.context.canvas.height],  // size of canvas
+            sampleCount: 4,
             format: "depth24plus",
             usage: GPUTextureUsage.RENDER_ATTACHMENT
         });
-        console.log("WebGPU initialized.")
+
+        this.textureForMultisampling = this.device.createTexture({
+            size: [this.context.canvas.width, this.context.canvas.height],
+            sampleCount: 4,  // (1 and 4 are currently the only possible values.)
+            format: navigator.gpu.getPreferredCanvasFormat(),
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+        this.textureViewForMultisampling = this.textureForMultisampling.createView();
+        
         this.viewProjectionUniformBuffer = this.device.createBuffer({
             size: 4 * 4 * 4, // currently only view projection matrix.
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         })
         this.updateViewProjectionUniformBuffer();
+        
+        console.log("WebGPU initialized.")
     }
 
     addRenderItem(item) {
@@ -105,26 +116,9 @@ export class Renderer {
 
     draw() {
         let commandEncoder = this.device.createCommandEncoder();
-        let renderPassDescriptor = {
-            colorAttachments: [{
-                clearValue: { r: 0.5, g: 0.5, b: 0.5, a: 1 },  // gray background
-                loadOp: "clear", // Alternative is "load".
-                storeOp: "store",  // Alternative is "discard".
-                view: this.context.getCurrentTexture().createView()  // Draw to the canvas.
-            }],
-            depthStencilAttachment: {  // Add depth buffer to the colorAttachment
-                view: this.depthTexture.createView(),
-                depthClearValue: 1.0,
-                depthLoadOp: "clear",
-                depthStoreOp: "store",
-            }
-        };
 
         for (const item of this.renderItems) {
-            console.log("Rendering item " + item.name);
-            let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-            item.onRender(passEncoder);
-            passEncoder.end();
+            item.onRender(commandEncoder);
         }
 
         this.device.queue.submit([commandEncoder.finish()]);
@@ -135,9 +129,10 @@ export class RenderItem {
     constructor(renderer, name) {
         this.renderer = renderer;
         this.device = renderer.device;
+        this.context = renderer.context;
         this.name = name;
         renderer.addRenderItem(this);
     }
 
-    onRender(passEncoder) {}
+    onRender(commandEncoder) {}
 }
