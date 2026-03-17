@@ -6,7 +6,7 @@ import {
 } from 'https://wgpu-matrix.org/dist/3.x/wgpu-matrix.module.js';
 
 async function loadShader(elementID) {
-    return 
+    return
 }
 
 export class Renderer {
@@ -17,7 +17,7 @@ export class Renderer {
         this.adapter = null;
         this.device = null;
         this.renderItems = [];
-        
+
         this.fov = 45 * Math.PI / 180;
         this.cameraUp = vec3.fromValues(0, 1, 0);
         this.camaraPosition = vec3.fromValues(0, 0, 3);
@@ -54,13 +54,13 @@ export class Renderer {
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
         this.textureViewForMultisampling = this.textureForMultisampling.createView();
-        
+
         this.viewProjectionUniformBuffer = this.device.createBuffer({
             size: 4 * 4 * 4, // currently only view projection matrix.
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         })
         this.updateViewProjectionUniformBuffer();
-        
+
         console.log("WebGPU initialized.")
     }
 
@@ -114,6 +114,32 @@ export class Renderer {
         return texture;
     }
 
+    async createCubemapTexture(URLs) {
+        let texture;
+        for (let i = 0; i < 6; i++) {
+            let response = await fetch(URLs[i]); // Get image number i.
+            let blob = await response.blob();
+            let imageBitmap = await createImageBitmap(blob);
+            if (i == 0) { // (We need to know the image size to create the texture.)
+                texture = device.createTexture({
+                    size: [imageBitmap.width, imageBitmap.height, 6],
+                    // (The 6 at the end means that there are 6 images.)
+                    dimension: "2d",  // (This is the default texture dimension.)
+                    format: 'rgba8unorm',
+                    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST |
+                        GPUTextureUsage.RENDER_ATTACHMENT
+                });
+            }
+            device.queue.copyExternalImageToTexture(
+                { source: imageBitmap },
+                { texture: texture, origin: [0, 0, i] },
+                // The i at the end puts the image into side number i of the cube.
+                [imageBitmap.width, imageBitmap.height]
+            );
+        }
+        return texture;
+    }
+
     draw() {
         let commandEncoder = this.device.createCommandEncoder();
 
@@ -134,5 +160,5 @@ export class RenderItem {
         renderer.addRenderItem(this);
     }
 
-    onRender(commandEncoder) {}
+    onRender(commandEncoder) { }
 }
