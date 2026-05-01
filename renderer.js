@@ -20,7 +20,7 @@ export class Renderer {
 
         this.fov = 45 * Math.PI / 180;
         this.cameraUp = vec3.fromValues(0, 1, 0);
-        this.camaraPosition = vec3.fromValues(0, 0, 3);
+        this.cameraPosition = vec3.fromValues(0, 0, 3);
         this.cameraFront = vec3.fromValues(0, 0, -1);
         this.viewProjectionUniformBuffer = null;
     }
@@ -74,13 +74,13 @@ export class Renderer {
     }
 
     setCameraPosition(position) {
-        this.camaraPosition = position;
+        this.cameraPosition = position;
         this.updateViewProjectionUniformBuffer();
     }
 
     updateViewProjectionUniformBuffer() {
         let projectionMatrix = mat4.perspective(this.fov, this.canvas.width / this.canvas.height, 0.1, 100);
-        let viewMatrix = mat4.lookAt(this.camaraPosition, vec3.add(this.camaraPosition, this.cameraFront), this.cameraUp);
+        let viewMatrix = mat4.lookAt(this.cameraPosition, vec3.add(this.cameraPosition, this.cameraFront), this.cameraUp);
         let viewProjectionMatrix = mat4.multiply(projectionMatrix, viewMatrix);
         this.device.queue.writeBuffer(this.viewProjectionUniformBuffer, 0, viewMatrix);
         this.device.queue.writeBuffer(this.viewProjectionUniformBuffer, 16 * 4, projectionMatrix);

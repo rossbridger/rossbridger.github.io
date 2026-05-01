@@ -91,6 +91,34 @@ export function installMouseHandler() {
     canvas.addEventListener("mousedown", doMouseDown, false);
 }
 
+export function installKeyboardHandler() {
+    function doKeyDown(key) {
+        if (!renderer) {
+            return;
+        }
+        const cameraSpeed = 0.1;
+        let cameraPosition = renderer.cameraPosition;
+        const cameraFront = renderer.cameraFront;
+        const cameraUp = renderer.cameraUp;
+        const cameraRight = vec3.cross(cameraFront, cameraUp);
+
+        if (key == 'w') {
+            cameraPosition = vec3.addScaled(cameraPosition, cameraFront, cameraSpeed);
+        } else if (key == 's') {
+            cameraPosition = vec3.addScaled(cameraPosition, cameraFront, -cameraSpeed);
+        } else if (key == 'a') {
+            cameraPosition = vec3.addScaled(cameraPosition, cameraRight, -cameraSpeed);
+        } else if (key == 'd') {
+            cameraPosition = vec3.addScaled(cameraPosition, cameraRight, cameraSpeed);
+        }
+        renderer.setCameraPosition(cameraPosition);
+    }
+    window.addEventListener('keydown', function (e) {
+        doKeyDown(e.key);
+    })
+    window.addEventListener('keyup', function (e) {
+    })
+}
 
 async function init() {
     try {
@@ -113,6 +141,7 @@ async function init() {
     });
     observer.observe(canvas);
     installMouseHandler();
+    installKeyboardHandler();
 
     renderer = new Renderer(canvas);
     await renderer.init();
