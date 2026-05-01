@@ -98,7 +98,7 @@ export class Cube extends RenderItem {
             },
             primitive: {
                 topology: "triangle-list",
-                cullMode: "back",
+                cullMode: "none",
                 frontFace: "ccw"
             },
             layout: "auto",
