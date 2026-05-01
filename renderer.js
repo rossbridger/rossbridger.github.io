@@ -56,7 +56,7 @@ export class Renderer {
         this.textureViewForMultisampling = this.textureForMultisampling.createView();
 
         this.viewProjectionUniformBuffer = this.device.createBuffer({
-            size: 4 * 4 * 4, // currently only view projection matrix.
+            size: 2 * 16 * 4, // currently only view and projection matrices.
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         })
         this.updateViewProjectionUniformBuffer();
@@ -82,7 +82,8 @@ export class Renderer {
         let projectionMatrix = mat4.perspective(this.fov, this.canvas.width / this.canvas.height, 0.1, 100);
         let viewMatrix = mat4.lookAt(this.camaraPosition, vec3.add(this.camaraPosition, this.cameraFront), this.cameraUp);
         let viewProjectionMatrix = mat4.multiply(projectionMatrix, viewMatrix);
-        this.device.queue.writeBuffer(this.viewProjectionUniformBuffer, 0, viewProjectionMatrix);
+        this.device.queue.writeBuffer(this.viewProjectionUniformBuffer, 0, viewMatrix);
+        this.device.queue.writeBuffer(this.viewProjectionUniformBuffer, 16 * 4, projectionMatrix);
     }
 
     async createShader(elementID) {
