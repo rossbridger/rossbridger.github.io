@@ -3,6 +3,7 @@
 import { Renderer } from "./renderer.js";
 import { vec3 } from 'https://wgpu-matrix.org/dist/3.x/wgpu-matrix.module.js';
 import { Cube } from "./cube.js";
+import { Ocean } from "./ocean.js";
 
 let canvas;
 let renderer;
@@ -147,6 +148,8 @@ async function init() {
     await renderer.init();
     let cube = new Cube(renderer);
     await cube.init();
+    let ocean = new Ocean(renderer);
+    await ocean.init();
     
     function draw() {
         renderer.draw();
