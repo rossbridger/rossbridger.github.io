@@ -5,7 +5,8 @@ struct VertexOutput {  // type for return value of vertex shader
 
 struct ProjectViewMatrix {
     viewMatrix : mat4x4f,
-    projectionMatrix : mat4x4f
+    projectionMatrix : mat4x4f,
+    cameraPosition : vec3f
 };
 
 const vertSamples = 16;

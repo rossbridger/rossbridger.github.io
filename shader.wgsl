@@ -10,7 +10,8 @@ struct DiskInfo {
 
 struct ProjectViewMatrix {
     viewMatrix : mat4x4f,
-    projectionMatrix : mat4x4f
+    projectionMatrix : mat4x4f,
+    cameraPosition : vec3f
 }
 
 @group(0) @binding(0) var<uniform> modelMatrix: mat4x4f;

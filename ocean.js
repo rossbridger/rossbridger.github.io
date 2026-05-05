@@ -45,13 +45,18 @@ export class Ocean extends RenderItem {
             },
             primitive: {
                 topology: "triangle-list",
-                cullMode: "none",
+                cullMode: "back",
                 frontFace: "cw"
             },
             layout: "auto",
             
             multisample: {  // Sets number of samples for multisampling.
                 count: 4,     //  (1 and 4 are currently the only possible values).
+            },
+            depthStencil: {
+                format: "depth24plus",
+                depthWriteEnabled: true,
+                depthCompare: "less"
             }
         };
         this.pipeline = this.device.createRenderPipeline(pipelineDescriptor);
@@ -134,7 +139,14 @@ export class Ocean extends RenderItem {
                 storeOp: "store",  // Alternative is "discard".
                 view: this.renderer.textureViewForMultisampling, // Render to multisampling texture.
                 resolveTarget: this.context.getCurrentTexture().createView() // Final image.
-            }]
+            }],
+            depthStencilAttachment: {  // Add depth buffer to the colorAttachment
+                view: this.renderer.depthTexture.createView(),
+                depthClearValue: 1.0,
+                depthLoadOp: "clear",
+                depthStoreOp: "store",
+                resolveTarget: this.context.getCurrentTexture().createView() // Final image.
+            }
         };
         let passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
         passEncoder.setPipeline(this.pipeline);            // Specify pipeline.
