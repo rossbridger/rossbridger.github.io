@@ -1,0 +1,74 @@
+plugins:
+  - jekyll-remote-theme
+  - jekyll-paginate
+  - jekyll-sitemap
+
+remote_theme: daattali/beautiful-jekyll
+title: It's Just Ross
+author: Ross the Gamedev guy
+description: It's Just Ross
+google_analytics: G-HP0D02S12H
+gtag: "G-HP0D02S12H"
+
+giscus:
+  hostname: giscus.app # Replace with your giscus instance's hostname if self-hosting
+  repository: "rossbridger/rossbridger.github.io"
+  repository-id: "R_kgDOKjMKmA"
+  category: General
+  category-id: DIC_kwDOKjMKmM4C9XVz
+  mapping: pathname
+  reactions-enabled: 1
+  emit-metadata: 1
+  theme: "preferred_color_scheme"
+
+date_format: "%B %-d, %Y"
+timezone: Asia/Bangkok
+
+analytics:
+  google: G-HP0D02S12H
+
+theme_mode: dark
+
+domain: rossbridger.github.io
+url: https://rossbridger.github.io
+
+social-network-links:
+  email: "rossbridger.cc@protonmail.com"
+  github: rossbridger
+
+# Select which social network share links to show in posts
+share-links-active:
+  twitter: true
+  facebook: true
+  linkedin: true
+  vk: false
+  reddit: false
+
+navbar-links:
+  About Me: "about"
+  Blogs: "blogs"
+  Home: "index"
+
+# Add a search button to the navbar
+post_search: true
+
+# Add a button in the footer to edit the current page. Only works if your website is hosted on GitHub
+edit_page_button: true
+
+# Add the website title to the title of every page
+title-on-all-pages: true
+
+# Excerpt word length - Truncate the excerpt of each post on the feed page to the specified number of words
+excerpt_length: 50
+
+# Whether or not to show an excerpt for every blog post in the feed page
+feed_show_excerpt: true
+
+# Whether or not to show a list of tags below each post preview in the feed page
+feed_show_tags: true
+
+github:
+  username: rossbridger # change to your GitHub username
+
+# boolean type, the global switch for TOC in posts.
+toc: true
